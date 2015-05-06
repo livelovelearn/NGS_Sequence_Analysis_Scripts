@@ -1,0 +1,103 @@
+"""
+Created on Tue Nov 21 17:51:30 2014
+
+@author: Yancheng Liu
+"""
+
+-----------------------------------------------------------------------------------------
+
+Get raw sequencing data
+
+-----------------------------------------------------------------------------------------
+wget ....
+wget -q -O 2055_6427_6418_N_in_R1.fastq.gz "http://cbsuapps.tc.cornell.edu/Sequencing/showseqfile.aspx mode=http&cntrl=1449438946&refid=10135"
+wget -q -O 2056_6427_6419_N_out_R1.fastq.gz "http://cbsuapps.tc.cornell.edu/Sequencing/showseqfile.aspx
+mode=http&cntrl=94946516&refid=10136"
+
+http://cbsuapps.tc.cornell.edu/Sequencing/refbrowser.aspx
+-----------------------------------------------------------------------------------------
+
+Data Analysis
+
+-----------------------------------------------------------------------------------------
+#0. QC check by FastQC
+
+#1. process raw data (mysample1.fastq) to fetch reads containing Tn sequence, and then trim reads to 30bp in length >> output file name as output1.fastq
+run in Python with unzipped fastq file.
+use script: Trim_FastQ.py
+
+#2. upload output1.fastq to server using Filezilla   
+
+#3. reserve a computer from cbsu.tc.cornell.edu
+
+#4. login the reserved computer via putty.  port: 22
+
+#5. copy reference genome and data files from server to local directory
+pwd #for showing current path
+mkdir /workdir/yancheng
+output1.fastq /workdir/yancheng/  #use cp -r when copying a whole folder
+
+#6.index genome 
+bwa index CDC1551.fasta
+
+#7.generate indexed, sorted .bam files from .fastq files
+for i in {1..10}
+do
+    bwa aln -t 8 -n 3 CDC1551.fasta trimmed_$i.fastq > matched$i.sai
+    bwa samse CDC1551.fasta matched$i.sai trimmed_$i.fastq > matched$i.sam
+    samtools view -bS -o matched$i.bam matched$i.sam
+    samtools sort matched$i.bam matched$i.sorted
+    samtools index matched$i.sorted.bam
+done
+
+for i in {1..16}
+do
+    bwa aln -t 8 -n 3 CDC1551.fasta YL$i.fastq > matched$i.sai
+    bwa samse CDC1551.fasta matched$i.sai YL$i.fastq > matched$i.sam
+    samtools view -bS -o matched$i.bam matched$i.sam
+    samtools sort matched$i.bam matched$i.sorted
+    samtools index matched$i.sorted.bam
+done
+
+
+#8. get reads per insertion location (count1.txt) and non-unique mapping stats (non_unique_mapping1.txt)
+
+mkdir ./counts
+
+for i in {1..16}
+do
+    samtools view matched$i.sorted.bam | awk '{print $2"_"$4}'|sort|uniq -c > count$i.txt
+done
+
+#################or###########################
+for i in {1..10}
+do
+    samtools view matched$i.sorted.bam | awk '{print $4}'|sort|uniq -c > count$i.txt
+done
+##############################################
+
+for i in {1..16}
+do
+    samtools view matched$i.sorted.bam | awk '{print $14}'|sort|uniq -c > non_unique_mapping$i.txt
+done
+ 
+#9. copy all files back to server
+
+#10. download all files from server to your local computer
+
+#11. using excel to combine all counts data into a summary table.
+>> import count.txt into excel by Data>From Text
+>> create a location column containing all unique location sites.  To remove duplicate entries, use Data>Remove Duplicates
+>> enter the count/location value into the summary table by using =INDEX(B:B, MATCH(H1,C:C, 0))
+
+#12. Data normalization:
+>> calculate total reads # for each sample
+>> calculate relative reads by (raw reads #)*100/(total reads #).
+>> cutoff >5 reads/location in Untreated sample
+>> rank location by fold change (Treated/Untreated)
+
+#13. Hits selection using script: TnSeq_Hits_Seclection.py
+
+#14. Map insertion sites to gene using script: Insertion_to_Gene.py
+
+#15. Generate summary reports. 
