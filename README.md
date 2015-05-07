@@ -1,1 +1,1 @@
-Codes for analyzing NGS_Sequence
+Workflow and Codes for analyzing TnSeq data.
